@@ -26,34 +26,26 @@ async def health_check():
     # Check if environment variables are set
     env_status = {
         "SUPABASE_URL_SET": bool(settings.SUPABASE_URL),
-        "SUPABASE_KEY_SET": bool(settings.SUPABASE_KEY)
+        "SUPABASE_KEY_SET": bool(settings.SUPABASE_KEY),
     }
-    
+
     # If either environment variable is missing, return early
     if not all(env_status.values()):
         return {
             "status": "error",
             "message": "Missing required environment variables",
             "env_vars": env_status,
-            "database": "not_connected"
+            "database": "not_connected",
         }
-    
+
     try:
         # Test database connection
         # Test database connection by fetching a single record
-        db_response = supabase_client.table('design_kits').select('id').limit(1).execute()
-        db_status = {
-            "status": "connected",
-            "can_query": len(db_response.data) >= 0
-        }
+        db_response = (
+            supabase_client.table("design_kits").select("id").limit(1).execute()
+        )
+        db_status = {"status": "connected", "can_query": len(db_response.data) >= 0}
     except Exception as e:
-        db_status = {
-            "status": "error",
-            "details": str(e)
-        }
-    
-    return {
-        "status": "healthy",
-        "environment": "configured",
-        "database": db_status
-    }
+        db_status = {"status": "error", "details": str(e)}
+
+    return {"status": "healthy", "environment": "configured", "database": db_status}
