@@ -1,7 +1,7 @@
 import dspy
 import json
 import os
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import List
 
 # --- 1. Configuration (from your code) ---
@@ -23,52 +23,14 @@ dspy.configure(lm=lm)
 # --- 2. Define the DSPy Signature ---
 # This translates our prompt's requirements into a programmable structure for DSPy.
 class ATSSignature(dspy.Signature):
-    """
-    You are an expert code analyzer AI. Your task is to meticulously analyze the provided React/TypeScript component source code and generate a single, structured JSON object representing its Abstract Technical Specification (ATS).
-    **CRITICAL INSTRUCTIONS:**
-    1.  **Analyze the code** provided under the `[COMPONENT SOURCE CODE]` section.
-    2.  **Extract the information** precisely according to the field descriptions below.
-    3.  **Your entire output must be a single, valid JSON object.** Do not include any introductory text, explanations, or markdown formatting around the JSON.
-    ---
+    """Analyze the React component source code and extract its Abstract Technical Specification (ATS) into structured fields."""
 
-    ### **JSON OUTPUT SCHEMA:**
-    ```json
-    {
-
-    "componentName": "string",
-
-    "description": "string",
-
-    "dependencies": "string[]",
-
-    "propsInterface": {
-
-    "[propName]": {
-
-    "type": "string",
-
-    "isOptional": "boolean",
-
-    "options": "string[] | null"
-
-    }
-
-    },
-
-    "tags": "string[]",
-
-    "rawCode": "string"
-
-    }
-
-    ```
-
-    """
-
+    # --- Input Field ---
     component_code = dspy.InputField(
         desc="The full source code of the React/TypeScript component."
     )
 
+    # --- Output Fields (each key of our JSON) ---
     componentName = dspy.OutputField(
         desc="The exact exported name of the React component (e.g., 'Button')."
     )
@@ -76,7 +38,10 @@ class ATSSignature(dspy.Signature):
         desc="A concise, one-sentence summary of the component's primary function."
     )
     dependencies = dspy.OutputField(
-        desc='A JSON-formatted list of all package names imported in the file (e.g., ["react", "@radix-ui/react-slot"]).'
+        desc='A JSON-formatted list of all external package names imported (e.g., ["react", "@radix-ui/react-slot"]).'
+    )
+    internalDependencies = dspy.OutputField(
+        desc='A JSON-formatted list of all internal, alias-based imports (e.g., ["@/lib/utils"]).'
     )
     propsInterface = dspy.OutputField(
         desc="A JSON-formatted object detailing each prop. For each prop, include its type, if it's optional, and a list of options if defined in a cva function."
@@ -101,6 +66,7 @@ class ATSModel(BaseModel):
     componentName: str
     description: str
     dependencies: List[str]
+    internalDependencies: List[str]
     propsInterface: dict[str, PropDetail]
     tags: List[str]
     rawCode: str
@@ -150,6 +116,7 @@ class ATSCreator:
                 "componentName": prediction.componentName,
                 "description": prediction.description,
                 "dependencies": json.loads(prediction.dependencies),
+                "internalDependencies": json.loads(prediction.internalDependencies),
                 "propsInterface": processed_props,
                 "tags": json.loads(prediction.tags),
                 "rawCode": prediction.rawCode,
@@ -163,71 +130,3 @@ class ATSCreator:
             print("--- Raw Prediction ---")
             print(prediction)
             return None
-
-
-# --- 5. Example Usage ---
-if __name__ == "__main__":
-    # Create an instance of the creator
-    ats_creator = ATSCreator()
-
-    # Create a dummy component file for testing
-    dummy_component_code = """
-import * as React from "react"
-import { Slot } from "@radix-ui/react-slot"
-import { cva, type VariantProps } from "class-variance-authority"
-import { cn } from "@/lib/utils"
-
-const buttonVariants = cva(
-  "inline-flex items-center justify-center rounded-md text-sm font-medium",
-  {
-    variants: {
-      variant: {
-        default: "bg-primary text-primary-foreground",
-        destructive: "bg-destructive text-destructive-foreground",
-      },
-      size: {
-        default: "h-10 px-4",
-        sm: "h-9 px-3",
-      },
-    },
-    defaultVariants: {
-      variant: "default",
-      size: "default",
-    },
-  }
-)
-
-export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
-    VariantProps<typeof buttonVariants> {
-  asChild?: boolean
-}
-
-const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant, size, asChild = false, ...props }, ref) => {
-    const Comp = asChild ? Slot : "button"
-    return (
-      <Comp
-        className={cn(buttonVariants({ variant, size, className }))}
-        ref={ref}
-        {...props}
-      />
-    )
-  }
-)
-Button.displayName = "Button"
-
-export { Button, buttonVariants }
-"""
-    with open("dummy_button.tsx", "w") as f:
-        f.write(dummy_component_code)
-
-    # Generate the ATS for the dummy file
-    ats_result = ats_creator.create_ats_from_file("dummy_button.tsx")
-
-    if ats_result:
-        # Pydantic models can be easily converted to a dictionary
-        print(json.dumps(ats_result.model_dump(), indent=2))
-
-    # Clean up the dummy file
-    os.remove("dummy_button.tsx")
