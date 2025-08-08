@@ -1,8 +1,7 @@
 import dspy
 import json
 import os
-from pydantic import BaseModel
-from typing import List
+from schemas.ats import ATSModel
 
 # --- 1. Configuration (from your code) ---
 # Make sure to replace "YOUR_GEMINI_API_KEY" or load it from a .env file
@@ -52,24 +51,6 @@ class ATSSignature(dspy.Signature):
     rawCode = dspy.OutputField(
         desc="The complete, unmodified source code from the input, formatted as a single JSON string."
     )
-
-
-# --- 3. Define Pydantic Models for a Validated Output ---
-# This ensures the AI's string output is converted into a clean, validated object.
-class PropDetail(BaseModel):
-    type: str
-    isOptional: bool
-    options: List[str] | None
-
-
-class ATSModel(BaseModel):
-    componentName: str
-    description: str
-    dependencies: List[str]
-    internalDependencies: List[str]
-    propsInterface: dict[str, PropDetail]
-    tags: List[str]
-    rawCode: str
 
 
 # --- 4. The ATSCreator Class ---
