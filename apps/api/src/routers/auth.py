@@ -31,28 +31,21 @@ async def github_callback(code: str):
     if not access_token:
         raise HTTPException(status_code=400, detail=f"Access token not found in response: {token_data}")
 
-    # 2. Use the access token to get user profile and emails
+    # 2. Use the access token to get the main user profile
     headers = {"Authorization": f"Bearer {access_token}"}
     async with httpx.AsyncClient() as client:
         user_response = await client.get("https://api.github.com/user", headers=headers)
-        emails_response = await client.get("https://api.github.com/user/emails", headers=headers)
 
     if user_response.status_code != 200:
-        raise HTTPException(status_code=400, detail=f"Failed to get user data: {user_response.text}")
-    if emails_response.status_code != 200:
-        raise HTTPException(status_code=400, detail=f"Failed to get user emails: {emails_response.text}")
+        raise HTTPException(status_code=400, detail=f"Failed to get user data from GitHub: {user_response.text}")
 
     user_data = user_response.json()
-    emails_data = emails_response.json()
 
-    # Find the primary email address safely
-    primary_email = None
-    if isinstance(emails_data, list):
-        primary_email_obj = next((email for email in emails_data if email.get('primary')), None)
-        if primary_email_obj:
-            primary_email = primary_email_obj.get('email')
-
-    user_data['email'] = primary_email
+    # The 'user:email' scope should make the email available here.
+    # If it's null, it's likely due to the user's GitHub privacy settings.
+    # We will use the username as a fallback for the name if it's not set.
+    if not user_data.get("name"):
+        user_data["name"] = user_data.get("login")
 
     # 3. TODO: Find or create the user in our Supabase DB using the user_data
     # user = await find_or_create_user(user_data)
