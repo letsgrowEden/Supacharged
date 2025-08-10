@@ -7,7 +7,7 @@ router = APIRouter()
 
 @router.get("/auth/github/login")
 async def login(response: Response):
-    return RedirectResponse(url=f"https://github.com/login/oauth/authorize?client_id={settings.GITHUB_CLIENT_ID}")
+    return RedirectResponse(url=f"https://github.com/login/oauth/authorize?client_id={settings.GITHUB_CLIENT_ID}&scope=read:user%20user:email")
 
 
 @router.get("/auth/github/callback")
