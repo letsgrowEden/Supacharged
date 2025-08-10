@@ -2,6 +2,9 @@ from fastapi import APIRouter, Response, HTTPException
 from starlette.responses import RedirectResponse
 from config.config import settings 
 import httpx
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -35,11 +38,21 @@ async def github_callback(code: str):
     headers = {"Authorization": f"Bearer {access_token}"}
     async with httpx.AsyncClient() as client:
         user_response = await client.get("https://api.github.com/user", headers=headers)
+        emails_response = await client.get("https://api.github.com/user/emails", headers=headers)
 
     if user_response.status_code != 200:
         raise HTTPException(status_code=400, detail=f"Failed to get user data from GitHub: {user_response.text}")
+    if emails_response.status_code != 200:
+        raise HTTPException(status_code=400, detail=f"Failed to get user emails from GitHub: {emails_response.text}")
 
     user_data = user_response.json()
+
+        # --- LOGGING FOR DEBUGGING ---
+    logger.info(f"User API Response Status: {user_response.status_code}")
+    logger.info(f"User API Response Body: {user_response.text}")
+    logger.info(f"Emails API Response Status: {emails_response.status_code}")
+    logger.info(f"Emails API Response Body: {emails_response.text}")
+    # -----------------------------
 
     # The 'user:email' scope should make the email available here.
     # If it's null, it's likely due to the user's GitHub privacy settings.
