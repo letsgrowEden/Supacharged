@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Response, HTTPException
+from fastapi import APIRouter, HTTPException
 from starlette.responses import RedirectResponse
 from config.config import settings 
 import httpx
 import logging
-
+from services import user_services
 # It's good practice to get the logger for the current module
 logger = logging.getLogger(__name__)
 
@@ -62,10 +62,10 @@ async def github_callback(code: str):
         user_data["name"] = user_data.get("login") # Use username as a fallback
 
     # 3. TODO: Find or create the user in our Supabase DB using the user_data
-    # user = await find_or_create_user(user_data)
+    user = await user_services.find_or_create_user(user_data)
 
     # 4. TODO: Create a JWT session token for our own app
     # session_token = create_session_token(user.id)
 
     # 5. For now, just return the enriched GitHub user data
-    return {"github_user": user_data}
+    return {"app_user": user}
