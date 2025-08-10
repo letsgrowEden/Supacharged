@@ -34,8 +34,13 @@ async def github_callback(code: str):
     user_data = user_response.json()
     emails_data = emails_response.json()
 
-    # Find the primary email address
-    primary_email = next((email['email'] for email in emails_data if email['primary']), None)
+    primary_email = None
+    if isinstance(emails_data, list):
+        for email_entry in emails_data:
+            if isinstance(email_entry, dict) and email_entry.get('primary'):
+                primary_email = email_entry.get('email')
+                if primary_email:
+                    break
     user_data['email'] = primary_email
 
     # 3. TODO: Find or create the user in our Supabase DB using the user_data
