@@ -8,6 +8,7 @@ dependencies = [
     "fastapi>=0.116.1",
     "pydantic-settings>=2.0.0",
     "supabase>=2.0.0",
+    "uvicorn>=0.20.0",
 ]
 
 [tool.setuptools.packages.find]
