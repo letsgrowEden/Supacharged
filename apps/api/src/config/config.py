@@ -8,6 +8,8 @@ class Settings(BaseSettings):
     SUPABASE_URL: str
     SUPABASE_KEY: str
     GEMINI_API_KEY: str
+    GITHUB_CLIENT_ID: str
+    GITHUB_CLIENT_SECRET: str
 
 
 # Create a single, reusable instance of the settings
