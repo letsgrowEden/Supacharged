@@ -4,13 +4,18 @@ from config.config import settings
 import httpx
 import logging
 
+# It's good practice to get the logger for the current module
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 @router.get("/auth/github/login")
-async def login(response: Response):
-    return RedirectResponse(url=f"https://github.com/login/oauth/authorize?client_id={settings.GITHUB_CLIENT_ID}&scope=read:user%20user:email")
+async def login():
+    # The scope requests the user's public profile and email
+    scope = "read:user user:email"
+    return RedirectResponse(
+        url=f"https://github.com/login/oauth/authorize?client_id={settings.GITHUB_CLIENT_ID}&scope={scope}"
+    )
 
 
 @router.get("/auth/github/callback")
@@ -22,43 +27,39 @@ async def github_callback(code: str):
         "code": code,
     }
     headers = {"Accept": "application/json"}
+    
     async with httpx.AsyncClient() as client:
         token_response = await client.post("https://github.com/login/oauth/access_token", params=params, headers=headers)
 
     if token_response.status_code != 200:
-        raise HTTPException(status_code=400, detail=f"Failed to get access token: {token_response.text}")
+        logger.error(f"Failed to get access token: {token_response.text}")
+        raise HTTPException(status_code=400, detail="Failed to exchange code for access token.")
 
     token_data = token_response.json()
     access_token = token_data.get("access_token")
 
     if not access_token:
-        raise HTTPException(status_code=400, detail=f"Access token not found in response: {token_data}")
+        logger.error(f"Access token not found in response: {token_data}")
+        raise HTTPException(status_code=400, detail="Access token not found in GitHub response.")
 
     # 2. Use the access token to get the main user profile
     headers = {"Authorization": f"Bearer {access_token}"}
     async with httpx.AsyncClient() as client:
         user_response = await client.get("https://api.github.com/user", headers=headers)
-        emails_response = await client.get("https://api.github.com/user/emails", headers=headers)
 
     if user_response.status_code != 200:
-        raise HTTPException(status_code=400, detail=f"Failed to get user data from GitHub: {user_response.text}")
-    if emails_response.status_code != 200:
-        raise HTTPException(status_code=400, detail=f"Failed to get user emails from GitHub: {emails_response.text}")
+        logger.error(f"Failed to get user data from GitHub: {user_response.text}")
+        raise HTTPException(status_code=400, detail="Failed to get user data from GitHub.")
 
     user_data = user_response.json()
-
-        # --- LOGGING FOR DEBUGGING ---
-    logger.info(f"User API Response Status: {user_response.status_code}")
-    logger.info(f"User API Response Body: {user_response.text}")
-    logger.info(f"Emails API Response Status: {emails_response.status_code}")
-    logger.info(f"Emails API Response Body: {emails_response.text}")
+    
+    # --- LOGGING FOR DEBUGGING ---
+    logger.info(f"Successfully fetched user data from GitHub: {user_data}")
     # -----------------------------
 
-    # The 'user:email' scope should make the email available here.
-    # If it's null, it's likely due to the user's GitHub privacy settings.
-    # We will use the username as a fallback for the name if it's not set.
+    # Gracefully handle cases where name or email might be null due to privacy settings
     if not user_data.get("name"):
-        user_data["name"] = user_data.get("login")
+        user_data["name"] = user_data.get("login") # Use username as a fallback
 
     # 3. TODO: Find or create the user in our Supabase DB using the user_data
     # user = await find_or_create_user(user_data)
