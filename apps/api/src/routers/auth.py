@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Response
+from fastapi import APIRouter, Response, HTTPException
 from starlette.responses import RedirectResponse
 from config.config import settings 
 import httpx
@@ -20,27 +20,38 @@ async def github_callback(code: str):
     }
     headers = {"Accept": "application/json"}
     async with httpx.AsyncClient() as client:
-        response = await client.post("https://github.com/login/oauth/access_token", params=params, headers=headers)
+        token_response = await client.post("https://github.com/login/oauth/access_token", params=params, headers=headers)
 
-    response_json = response.json()
-    access_token = response_json.get("access_token")
+    if token_response.status_code != 200:
+        raise HTTPException(status_code=400, detail=f"Failed to get access token: {token_response.text}")
 
-    # 2. Use the access token to get the main user profile
+    token_data = token_response.json()
+    access_token = token_data.get("access_token")
+
+    if not access_token:
+        raise HTTPException(status_code=400, detail=f"Access token not found in response: {token_data}")
+
+    # 2. Use the access token to get user profile and emails
     headers = {"Authorization": f"Bearer {access_token}"}
     async with httpx.AsyncClient() as client:
         user_response = await client.get("https://api.github.com/user", headers=headers)
         emails_response = await client.get("https://api.github.com/user/emails", headers=headers)
 
+    if user_response.status_code != 200:
+        raise HTTPException(status_code=400, detail=f"Failed to get user data: {user_response.text}")
+    if emails_response.status_code != 200:
+        raise HTTPException(status_code=400, detail=f"Failed to get user emails: {emails_response.text}")
+
     user_data = user_response.json()
     emails_data = emails_response.json()
 
+    # Find the primary email address safely
     primary_email = None
     if isinstance(emails_data, list):
-        for email_entry in emails_data:
-            if isinstance(email_entry, dict) and email_entry.get('primary'):
-                primary_email = email_entry.get('email')
-                if primary_email:
-                    break
+        primary_email_obj = next((email for email in emails_data if email.get('primary')), None)
+        if primary_email_obj:
+            primary_email = primary_email_obj.get('email')
+
     user_data['email'] = primary_email
 
     # 3. TODO: Find or create the user in our Supabase DB using the user_data
