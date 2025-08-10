@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from db.db import supabase_client
 from config.config import settings
+from routers import auth
 
 app = FastAPI(title="Supacharged API")
 
@@ -15,7 +16,10 @@ app.add_middleware(
     expose_headers=["*"],
 )
 
+# Include routers
+app.include_router(auth.router, prefix="/api/v1")
 
+# Health check endpoint
 @app.get("/health")
 async def health_check():
     """
